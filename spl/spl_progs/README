@@ -1,0 +1,24 @@
+Here ontains the Various System calls written in SPL for XOS
+
+SYSTEM CALLS
+  Timmer interrupt routine (using round-robin scheduling)
+
+System Calls related to files
+  Create
+  Delete
+  Read
+  Write
+  Open 
+  Close
+  Seek
+
+Process System calls
+  Fork
+  Exec
+  Exit
+  Getpid
+  Getppid
+  Wait
+  Signal
+
+ XOS developed to Support Demand paging and Handle Exceptions caused by XSM.
