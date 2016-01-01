@@ -1,0 +1,48 @@
+print "Hello";
+
+//................exception handler......................
+
+load(7,1) ;
+load(8,2) ;  
+
+//................loading interrupt 7........................
+
+load(23,17);
+load(24,18);
+
+
+//.................loading INIT program.............................
+load(25,21);
+load(26,22);
+load(27,23);
+								// page 28 is for stack of INIT
+
+
+//.................ready list.............................
+
+PTBR = 1024  ;   				//sets PTBR physical address
+PTLR = 4;
+
+[READY_LIST + 0] = 0 ;   		// sets PID = 0
+[READY_LIST + 1] = 2 ;    		// set process state as running 
+					
+
+//.................page table..............................
+
+[PTBR + 0] = 25; 		//PHYSICAL page number for logical page 0 of processs
+[PTBR + 1] = "01";		//setting auxillary info for logical page 0
+
+[PTBR + 2] = 26;
+[PTBR + 3] = "01";
+
+[PTBR + 4] = 27;
+[PTBR + 5] = "01";
+
+[PTBR + 6] = 28;
+[PTBR + 7] = "01";
+
+SP = 3*512; 			//set sp`s logical address
+BP = 3*512;				//setting BP 
+
+[28*512] = 0;           //setting top of INIT's stack to 0, so IP takes this.
+ireturn ;

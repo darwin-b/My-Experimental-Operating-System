@@ -1,0 +1,172 @@
+alias physical_sp S1;
+alias j S2;
+alias counter S3;
+alias syscall S4;
+alias pcb S5;
+alias newpid S6;
+alias return_val S7;
+alias opentableindex S8;
+alias pid S9;
+alias temp S10;
+
+alias page1 S11;
+alias page2 S12;
+alias newpcb S13;
+alias argument S14;
+alias i S15;
+
+
+
+pid = (PTBR-1024)/8;
+
+pcb = (READY_LIST + 32*pid);
+
+physical_sp = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+syscall = physical_sp - 1 ;
+return_val = physical_sp - 2 ;
+
+
+if([syscall]==10) then
+	print "Exit call";
+
+	j=0;
+	while(j<32) do
+	 	if([READY_LIST + 32*j +1]==100 + pid) then
+			[READY_LIST + 32*j +1]=1;
+		endif;
+	j=j+1;	
+	endwhile;
+
+	breakpoint;
+	print "1";
+	j=0;
+	newpid = ((pid+1) % 32);
+	while(j<32) do
+		newpcb = READY_LIST + 32*newpid;
+		if([newpcb +1] ==1) then
+
+		//closing open instances.
+
+			i=0;
+			while(i<8) do
+				if([newpcb +15+2*i]!=-1) then
+					opentableindex=[pcb+15+2*i];
+
+					temp = FILE_TABLE + 2*[opentableindex]+1;
+					[temp] =  [temp] - 1;
+
+					if([temp]==0) then
+						[FILE_TABLE + 2*[opentableindex]] = -1;
+					endif;
+
+					[opentableindex] = -1;
+					[opentableindex +1] = -1;
+
+				endif;
+				i=i+1;
+			endwhile;
+
+
+			[pcb +1]=0;
+
+			i=0;
+			while(i<8) do
+
+				//MEM LIST UPDATE
+			temp = PTBR +i;
+
+	  		if(([temp +1] == "01") || ([temp +1] == "11")) then
+				[1280+[PTBR+2*i]]= [1280+[PTBR+2*i]] -1;
+				[PTBR+2*i+1]="00";                
+			endif;
+	
+			//DISK LIST UPDATE
+
+
+			 
+			if(([temp +1] == "00") || ([temp +1] == "10")) then
+				if([temp]>=448) then
+					[DISK_LIST + [temp]] = [DISK_LIST + [temp]] -1;
+					store(20,6);
+				endif;
+			endif;
+				[1280+[temp]]=0;
+				[temp] = -1;
+				[temp +1] = "00";
+				i=i+2;
+			endwhile;
+
+
+			break;
+		
+		endif;
+
+		newpid= (newpid+1)%32;
+		j=j+1;
+	endwhile;
+
+	if(j>31) then
+		print "no ready process";
+		halt;
+	endif;
+
+
+	[newpcb ]=newpid;
+	[newpcb +1] = 2;
+	PTBR = [newpcb +5];
+	PTLR = [newpcb +6];
+	R0 = [newpcb +7] ;
+	R1 = [newpcb +8] ;
+	R2 = [newpcb +9] ;
+	R3 = [newpcb +10];
+	R4 = [newpcb +11] ;
+	R5 = [newpcb +12] ;
+	R6 = [newpcb +13] ;
+	R7 = [newpcb +14] ;
+	
+	SP=[newpcb +3];
+	BP=[newpcb +2]  ;
+	SP=SP+1;
+	breakpoint;
+	[[PTBR + 2*(SP/512)]*512 + (SP%512)] = [newpcb +4];
+	ireturn;
+
+endif;
+
+
+if([syscall]==13) then
+	
+
+	print "Wait Call";
+	argument=physical_sp-3;
+
+	if([READY_LIST +32*[argument]+1]==1) then
+		[pcb+1]=100+[argument];
+		[return_val]=0;
+	endif;
+
+	inline "JMP 4608";
+
+
+endif;
+
+if([syscall]==14) then
+
+	// Signal implementation
+	print "Signal Call";
+
+	i=0;
+	while(i<32) do
+ 		if([READY_LIST + 32*i +1]==100 + pid) then
+			[READY_LIST + 32*i +1]=1;
+		endif;
+		i=i+1;
+	endwhile;
+	[return_val]=0;
+	ireturn;
+endif;
+
+
+
+
+

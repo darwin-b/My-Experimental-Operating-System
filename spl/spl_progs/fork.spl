@@ -1,0 +1,222 @@
+alias physical_sp S1;
+alias fatindex S2;
+alias counter S3;
+alias syscall S4;
+alias pcb S5;
+alias childpid S6;
+alias return_val S7;
+alias opentableindex S8;
+alias pid S9;
+alias temp S10;
+
+alias page1 S11;
+alias page2 S12;
+alias page3 S13;
+alias page4 S14;
+alias i S15;
+
+
+page1 = -1;
+page2 = -1;
+page3 = -1;
+page4 = -1;
+
+pid = (PTBR-1024)/8;
+pcb = (READY_LIST + 32*pid);
+
+physical_sp = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+syscall = physical_sp - 1 ;
+return_val = physical_sp - 2 ;
+
+
+if([syscall]==8) then
+
+//looking for a free entry in PCB for child process
+
+	counter =0;
+	while(counter < 32) do
+		if([READY_LIST +1 +32*counter] == 0 ) then
+			childpid = counter;
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	if(counter >= 32) then
+		print "No space in pcb";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+	[READY_LIST + 32*childpid] = childpid;
+
+	counter = 0;
+	temp = 0;
+
+	while(counter<4) do
+		if( ([PTBR + 2*counter +1] == "01") || ([PTBR + 2*counter +1] == "11") ) then
+		temp = temp + 1;     	//temp holds the number of valid pages of parent's process.
+		endif;
+		counter=counter+1;
+	endwhile;
+
+//..........finding and checking in memory list...............
+
+	i=0;
+	counter = 0;
+	while(counter <64) do
+		if(i<temp) then
+			if([MEM_LIST + counter] == 0) then
+				i = i+1;
+				if(i==1) then
+					page1 = counter;
+				endif;
+
+				if(i==2) then
+					page2 = counter;
+				endif;
+
+				if(i==3) then
+					page3 = counter;
+				endif;
+
+				if(i==4) then
+					page4 = counter;
+				endif;
+			endif;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	if(i<temp) then
+		print "no memory";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+//.......................updating memory list................
+
+	if(page1 != -1) then
+		[MEM_LIST + page1] = 1;
+	endif;
+
+	if(page2 != -1) then
+		[MEM_LIST + page2] = 1;
+	endif;
+
+	if(page3 != -1) then
+		[MEM_LIST + page3] = 1;
+	endif;
+
+	if(page4 != -1) then
+		[MEM_LIST + page4] = 1;
+	endif;
+
+	counter = 0;
+	if( ([PTBR + 0 +1] == "01") || ([PTBR + 0 +1] == "11") ) then 
+		i=0;
+		while(i<512) do 
+			[512*page1+i] = [512*[PTBR + 0] +i];
+			i=i+1;
+		endwhile;
+	endif;
+
+	counter = 1;
+	if( ([PTBR + 2 +1] == "01") || ([PTBR + 2 +1] == "11") ) then 
+		i=0;
+		while(i<512) do 
+		[512*page2+i] = [512*[PTBR + 2] +i];
+			i=i+1;
+		endwhile;
+	endif;
+
+	counter = 2;
+	if( ([PTBR + 4 +1] == "01") || ([PTBR + 4 +1] == "11") ) then 
+		i=0;
+		while(i<512) do 
+			[512*page3+i] = [512*[PTBR + 4] +i];
+			i=i+1;
+		endwhile;
+	endif;
+
+	counter = 3;
+	if( ([PTBR + 6 +1] == "01") || ([PTBR + 6 +1] == "11") ) then 
+		i=0;
+		while(i<512) do 
+			[512*page4+i] = [512*[PTBR + 6] +i];
+			i=i+1;
+		endwhile;
+	endif;
+
+	temp = PAGE_TABLE + 8*(childpid);  			//ptbr of child
+
+
+
+i=1;
+while(i<8) do
+[temp +i]=[PTBR+i];
+i=i+2;
+endwhile;
+
+[temp + 0] = page1;
+[temp + 2] = page2;
+[temp + 4] = page3;
+[temp + 6] = page4;
+
+
+//..........updating Child's PCB ................
+print SP;
+
+[READY_LIST + 32*childpid + 5] = temp;
+[READY_LIST + 32*childpid + 4] = [physical_sp];   //ip
+[READY_LIST + 32*childpid + 3] = SP-1;
+[READY_LIST +32*childpid +6]=PTLR;
+[READY_LIST +32*childpid +2]=BP;
+[READY_LIST +32*childpid +1]=1;   		//setting child's process state to ruuning (1)
+
+[READY_LIST +32*childpid +7]=R0;
+[READY_LIST +32*childpid +8]=R1;
+[READY_LIST +32*childpid +9]=R2;
+[READY_LIST +32*childpid +10]=R3;
+[READY_LIST +32*childpid +11]=R4;
+[READY_LIST +32*childpid +12]=R5;
+[READY_LIST +32*childpid +13]=R6;
+[READY_LIST +32*childpid +14]=R7;
+[READY_LIST +32*childpid + +31] = pid;
+breakpoint;
+
+//copying open file table instances of parrent to child's pcb & updating system wide open table.
+
+//i=0;
+//while(i<16) do
+//	temp = READY_LIST +32*childpid + 15 +i;
+//	[temp] = [READY_LIST +32*pid +15 +i];
+
+	
+//	temp = READY_LIST +32*childpid + 15 +i;
+//	if([temp]!=-1) then
+//		[FILE_TABLE +[temp]] = [FILE_TABLE +[temp]] + 1;
+//	endif;
+//	i=i+2;
+//endwhile;
+
+
+[return_val] = childpid;
+
+breakpoint;
+
+temp = PAGE_TABLE + 8*(childpid);  			//ptbr of child
+
+[([temp + 2 * ((SP-1) / 512)] * 512) + ((SP-1) % 512) -1]=-2;
+
+//	i=i+1;
+//endwhile;
+
+//i=0;
+//while(i<16) do
+
+endif;   //closing for if syscall==8;
+ireturn;
+
+
+

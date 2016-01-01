@@ -1,0 +1,117 @@
+alias physical_sp S1;
+alias fatindex S2;
+alias counter S9;
+alias filename S3;
+alias syscall S4;
+alias temp S5;
+alias return_val S7;
+alias opentableindex S8;
+alias pid S0;
+alias basicblock S6;
+alias i S10;
+alias j S15;
+
+alias page1 S11;
+alias page2 S12;
+alias page3 S13;
+alias page4 S14;
+
+
+page1 = -1;
+page2 = -1;
+page3 = -1;
+page4 = -1;
+
+
+pid = (PTBR-1024)/8;
+
+physical_sp = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+
+syscall = physical_sp - 1 ;
+filename = physical_sp - 3 ;
+return_val = physical_sp - 2 ;
+
+temp = FAT;
+
+if([syscall] == 9) then							
+	print "Exec call" ;
+											//......... whether file already exists.................
+
+	while(temp < (FAT + 512)) do
+		if([filename]==[temp]) then
+			basicblock = [temp+2];
+			i=[temp+1]/512;
+			break;
+		endif;
+		temp =temp +8;
+	endwhile;
+
+	if(temp >= 512 + FAT) then
+		print "NO file present";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+	counter=0;
+	i=0;
+	load(1,basicblock);
+	
+	while(i<3)do                //counter<size
+	  	if([512+i]!=-1) then      
+			load([PTBR+2*counter],[512+i]);
+			[1280+[PTBR+2*counter]]=1;
+			[PTBR+2*counter+1]="01";                
+			counter=counter+1; 
+		endif;
+	i=i+1;
+	endwhile;
+
+	while(counter<3) do
+		[1280+[PTBR+2*counter]]=0;	
+		[PTBR + 2*counter]=-1;
+		[PTBR+2*counter+1]="00"; 
+		counter=counter+1;
+	endwhile;
+
+
+	i=0;
+	while(i<8) do
+		if([READY_LIST+ 32*pid+15+2*i]!=-1) then
+			opentableindex=[READY_LIST+ 32*pid+15+2*i];
+
+			[FILE_TABLE + 2*[opentableindex]+1] =  [FILE_TABLE + 2*[opentableindex]+1] - 1;
+
+			if([FILE_TABLE + 2*[opentableindex]+1]==0) then
+				[FILE_TABLE + 2*[opentableindex]] = -1;
+			endif;
+		endif;
+		i=i+1;
+	endwhile;
+
+
+	SP = 3*512;
+	SP = SP + 1;
+	physical_sp = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+	[physical_sp] = 0;
+	ireturn;
+endif;
+
+	
+if([syscall]==11) then
+	print "Getpid Call";
+	[return_val] = pid;
+	ireturn;
+endif;
+
+
+if([syscall] == 12) then 
+	print "Getppid call" ;
+	[return_val] = [READY_LIST + 32*pid +31] ;
+	ireturn;
+endif;
+
+
+
+
+
+	

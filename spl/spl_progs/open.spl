@@ -1,0 +1,144 @@
+alias physical_sp S1;
+alias fatindex S2;
+alias counter S6;
+alias filename S3;
+alias syscall S4;
+alias temp S5;
+alias return_val S7;
+alias opentableindex S8;
+alias pid S0;
+
+pid = (PTBR-1024)/8;
+
+physical_sp = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+
+syscall = physical_sp - 1 ;
+filename = physical_sp - 3 ;
+return_val = physical_sp - 2 ;
+
+temp=FAT;
+if([syscall] == 2) then							
+											
+	while(temp < (FAT + 512)) do
+		if([filename]==[temp]) then
+			fatindex = (temp-FAT)/8 ;
+			break;
+		endif;
+		temp =temp +8;
+	endwhile;
+
+//......... .....................................................whether file exists in FAT.................
+	if(temp >= (FAT + 512)) then
+		print "FILE doesn't ";
+			print "exist";
+			[return_val] = -1;
+			ireturn;
+	endif;
+
+//..............................................................looking fatindex in systemwide open file table..............................
+	counter=0;
+	while(counter<128) do
+		if(fatindex==[FILE_TABLE + counter]) then
+			opentableindex = counter/2;
+			print "openindex exist: ";
+			print opentableindex;
+			break;
+		endif;
+		counter = counter + 2;
+	endwhile;
+
+//..........................................................finding free entry in systemwide open file table...............................
+	if(counter>=128) then
+		counter = 0;
+		while(counter< 128) do
+			if([FILE_TABLE + counter]==-1) then
+				opentableindex = counter/2;
+				print "openindex not: ";
+				print opentableindex;
+				break;
+			endif;
+			counter = counter + 2;
+		endwhile;
+
+		if(counter>=128) then
+			print "file_table full" ;
+			[return_val] = -1;
+			ireturn;
+		endif;
+	endif;
+
+	temp = (READY_LIST + 32*pid);    //pcb of current process
+
+//..................................................................finding free entry in process file table..................
+	counter=0;
+	while(counter<16) do
+		if([temp + 15 + counter]==-1) then
+			[temp+15+counter] = opentableindex;
+			[temp+15+counter+1] = 0;
+			[return_val] = counter/2;   //storing index of entry in process open file table
+			break;
+		endif;
+		counter = counter+2;
+	endwhile;
+
+	if(counter>=16) then
+		print "process_table" ;
+		print " full ";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+//............................................................updating sytem wide open file table...................................
+
+	[FILE_TABLE + 2*opentableindex] = fatindex;
+
+	print "fatindex: " ;
+	print [FILE_TABLE + 2*opentableindex] ;
+	
+	[FILE_TABLE + 2*opentableindex+1] = [FILE_TABLE + 2*opentableindex+1] + 1;
+	
+	print "opened times: ";
+	print [FILE_TABLE + 2*opentableindex+1] ;
+	print "return value: ";
+
+	ireturn;
+endif;
+
+
+alias fd S3;
+
+
+//................................close system call implementation..........
+
+if([syscall] == 3) then
+	if( ([fd]<0)||([fd]>7) ) then
+		print "Invalid FD ";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+	temp = (READY_LIST + 32*pid);
+
+	if([temp+15+2*[fd]] == -1 ) then
+		print "Invalid entry" ;
+		[return_val] = -1;
+		ireturn;
+	endif;		
+
+	[opentableindex] = [temp+15+2*[fd]] ;
+
+	[FILE_TABLE + 2*[opentableindex]+1] =  [FILE_TABLE + 2*[opentableindex]+1] - 1;
+
+	if([FILE_TABLE + 2*[opentableindex]+1]==0) then
+		[FILE_TABLE + 2*[opentableindex]] = -1;
+	endif;
+
+	[temp+15+2*[fd]] = -1;
+	[temp+15+2*[fd]+1] = 0;
+
+		[return_val] = 0;
+		ireturn;
+
+endif;	
+
+

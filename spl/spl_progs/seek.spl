@@ -1,0 +1,128 @@
+alias physical_sp S1;
+alias fatindex S2;
+
+alias newlseek S3;
+alias syscall S4;
+alias pcb S5;
+alias return_val S7;
+alias opentableindex S8;
+alias fd S0;
+alias pid S9;
+alias lseek S10;
+alias filesize S13;
+alias datablock S11;
+alias basic_block S12;
+alias wordread S14;
+
+
+pid = (PTBR-1024)/8;
+
+physical_sp = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+
+syscall = physical_sp - 1 ;
+newlseek = physical_sp - 3 ;
+wordread = physical_sp - 3;
+
+fd = physical_sp - 4;
+print [fd];
+return_val = physical_sp - 2 ;
+pcb = (READY_LIST + 32*pid);
+
+if([syscall] == 6) then
+	if( ([fd]<0)||([fd]>7) ) then
+		print "Invalid FD ";
+		[return_val] = -1;
+		ireturn;
+	endif;	
+
+	if([pcb+15+2*[fd]] == -1 ) then
+		print "FILE not " ;
+		print "Opened";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+	opentableindex = [pcb+15+2*[fd]];
+	lseek = [pcb+15+2*[fd]+1];
+	print "lseek: ";
+	print lseek;
+
+
+	fatindex = [FILE_TABLE + 2*opentableindex];
+	print "fatindex: ";
+	print fatindex;
+
+	filesize = [FAT + 8*fatindex +1];
+	print "filesize: " ;
+	print filesize;
+
+	if( ([newlseek]<0 ) || ([newlseek]>filesize)) then
+		print "Invalid lseek" ;
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+	[pcb+15+2*[fd]+1] = [newlseek];
+
+	[return_val] = 0;
+	print "hi";
+	ireturn;
+
+endif;
+
+if([syscall] == 7) then
+	if( ([fd]<0)||([fd]>7) ) then
+		print "Invalid FD ";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+
+	if([pcb+15+2*[fd]] == -1 ) then
+		print "FILE not " ;
+		print "Opened";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+	opentableindex = [pcb+15+2*[fd]];
+	lseek = [pcb+15+2*[fd]+1];
+	//print "lseek: ";
+	//print lseek;
+
+
+	fatindex = [FILE_TABLE + 2*opentableindex];
+	//print "fatindex: ";
+	//print fatindex;
+	basic_block = [FAT + 8*fatindex+2];
+
+	filesize = [FAT + 8*fatindex +1];
+	//print "filesize: " ;
+	//print filesize;
+
+	if(lseek==filesize) then
+		print "end of file";
+		[return_val]=-1;
+		ireturn;
+	endif;	
+
+	
+	load(1,basic_block);
+	datablock = [1*512 + (lseek/512)];
+
+	load(1,datablock);
+	[wordread] = [1*512 + (lseek%512)];
+	//print "word read: ";
+	//print wordread;
+	[pcb+15+2*[fd]+1] = [pcb+15+2*[fd]+1] + 1; 
+
+	[return_val]=0;
+	ireturn;
+	
+endif;
+
+
+
+	
+
+

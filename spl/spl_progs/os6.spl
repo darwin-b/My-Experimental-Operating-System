@@ -1,0 +1,89 @@
+print "Hello" ;
+
+alias PTBR_2 S0 ;
+
+
+//................exception handler......................
+
+load(7,1) ;
+load(8,2) ;  
+
+//................loading interrupt 7........................
+
+load(23,17);
+load(24,18);
+
+//................timer interrupt.............
+load(9,3);
+load(10,4);
+
+
+//.................loading INIT program.............................
+load(25,21);
+load(26,22);
+load(27,23);
+								// page 28 is for stack of INIT
+
+
+//.................ready list.............................
+
+PTBR = 1024  ;   				//sets PTBR physical address
+PTLR = 4;
+
+[READY_LIST + 0] = 0 ;   		// sets PID = 0
+[READY_LIST + 1] = 2 ;    		// set process state as running 
+
+SP = 3*512; 			//set sp`s logical address
+BP = 3*512;				//setting BP 
+
+[28*512] = 0;       //setting top of INIT's stack to 0, so IP takes this.(not required)
+
+				
+
+//.................page table process 1..............................
+
+[PTBR + 0] = 25; 		//PHYSICAL page number for logical page 0 of processs
+[PTBR + 1] = "01";		//setting auxillary info for logical page 0
+
+[PTBR + 2] = 26;
+[PTBR + 3] = "01";
+
+[PTBR + 4] = 27;
+[PTBR + 5] = "01";
+
+[PTBR + 6] = 28;
+[PTBR + 7] = "01";
+
+print "Hello 1" ;
+
+//................loading process 2 file block from disk...........
+
+load(29,27) ;
+
+//.................page table process 2..............................
+
+PTBR_2 = PTBR + 1*8;   // PTBR + (PID*8) gives for new process      
+
+
+[PTBR_2 + 0] = 29;
+[PTBR_2 + 1] = "01" ;
+[PTBR_2 + 2] = -1 ;
+[PTBR_2 + 3] = "00" ;
+[PTBR_2 + 4] = -1;
+[PTBR_2 + 5] = "00" ;
+[PTBR_2 + 6] = 32 ;
+[PTBR_2 + 7] = "01" ;
+
+print "Hello 2" ;
+
+[READY_LIST + 32 + 0] = 1;
+[READY_LIST + 32 + 1] = 1;
+[READY_LIST + 32 + 2] = 3*512;
+[READY_LIST + 32 + 3] = 3*512;
+[READY_LIST + 32 + 4] = 0;       // sets ip = 0 in pcb
+[READY_LIST + 32 + 5] = PTBR_2;
+[READY_LIST + 32 + 6] = 4;
+
+
+print "Hello 3" ;
+ireturn ;

@@ -1,0 +1,104 @@
+print("In int 3 ");
+
+alias physicalSP S0;
+alias sysCallno S1;
+alias returnAdd S2;
+alias fd S3;
+alias newlseek S4;
+alias lseek S7;
+alias fatindex S9;
+alias filesize S10;
+
+
+
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+sysCallno = physicalSP -1;
+returnAdd = physicalSP -2;
+newlseek= physicalSP -3;
+fd=physicalSP -4;
+
+if([sysCallno]==6) then
+
+	if([fd]>7||[fd]<0) then
+		print("Invalid FD");
+		[returnAdd]=-1;
+		ireturn; 
+	endif;
+
+	S6=(PTBR-1024)/8;
+	alias swft_index S8;
+
+	swft_index=[READY_LIST+ S6*32 +15+2*[fd]];
+	lseek=READY_LIST+ S6*32 +15+2*[fd]+1;
+
+	if(swft_index==-1) then
+ 		print("Not opened");
+ 		[returnAdd]=-1;
+		ireturn;
+	endif;
+	
+	fatindex=[FILE_TABLE+2*swft_index];
+	filesize=[FAT+8*fatindex+1];
+
+
+	if([newlseek]<0||[newlseek]>filesize) then
+		 print("Invalid lseek");
+		 [returnAdd]=-1;
+		 ireturn;
+	endif;
+
+	[lseek]=[newlseek];
+	print("changed");
+	 [returnAdd]=0;
+	 ireturn;
+
+
+else
+
+
+	if([fd]>7||[fd]<0) then
+		print("Invalid FD");
+		[returnAdd]=-1;
+		ireturn; 
+	endif;
+
+	S6=(PTBR-1024)/8;
+	alias swft_index S8;
+
+	swft_index=[READY_LIST+ S6*32 +15+2*[fd]];
+	lseek= READY_LIST+ S6*32 +15+2*[fd]+1;
+
+	if(swft_index==-1) then
+		 print("Not opened");
+		 [returnAdd]=-1;
+ 		ireturn;
+	endif;
+
+	fatindex=[FILE_TABLE+2*swft_index];
+	filesize=[FAT+8*fatindex+1];
+	
+	if([lseek]==filesize) then
+		print("end of file");
+		[returnAdd]=-1;
+	 	ireturn;
+	endif;
+
+	alias db S13;
+	alias bb S12;  
+	alias word_read S14;
+	bb=[FAT+8*fatindex+2]; 
+	word_read=physicalSP -3;
+
+	load(1,bb);
+	db=[512+[lseek]/512];
+	load(1,db);
+	[word_read]=[512+[lseek]%512];
+
+	[lseek]=[lseek]+1;
+	print("word read");
+	[returnAdd]=0;
+
+endif;
+	ireturn;
+
+

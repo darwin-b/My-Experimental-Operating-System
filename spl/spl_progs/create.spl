@@ -1,0 +1,189 @@
+alias physical_sp S1;
+alias basic_block S2;
+alias counter S6;
+alias filename S3;
+alias syscall S4;
+alias temp S5;
+alias return_val S7;
+alias opentableindex S8;
+
+alias temp2 S0;
+
+
+physical_sp = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+
+syscall = physical_sp - 1 ;
+
+print "syscall- ";
+print [S4];
+filename = physical_sp - 3 ;
+
+return_val = physical_sp - 2 ;
+
+temp = FAT;
+          
+//.............................. checking syscall_number if it is for creating or deleting file............................
+
+if([syscall] == 1) then							
+											//......... whether file already exists.................
+	while(temp < (FAT + 512)) do
+		if([filename]==[temp]) then
+			print "File Exist";
+			[return_val] = -1;
+			ireturn;
+		endif;
+		temp =temp +8;
+	endwhile;
+											//..........finding free block in df to set it as basic block..................
+	temp = 6*512;
+	counter = 24;
+	while(temp + counter < (6*512 + 448)) do
+		if([temp + counter]==0) then
+			basic_block = counter;
+			print "bblock:";
+			print counter;
+			break;
+		endif;
+		counter = counter + 1 ;
+	endwhile;
+											//............if df is full......................
+	if(temp>=6*512+448) then
+		print "No space in df";
+		[return_val] = -1;
+		ireturn;
+	endif;
+											//........... checking for free entry in FAT, if found updating it..............
+	temp = FAT;
+	temp = temp+2;
+	counter = 0;
+	
+	while(counter < 64*8) do
+		if([temp + counter] ==-1) then
+			[temp + counter] = basic_block;
+			[temp + counter -1] = 0;
+			[temp + counter -2] = [filename] ;
+			
+			break;
+		endif;
+		counter = counter + 8;
+	endwhile;
+
+	if(counter>=64*8) then
+		print "No space in FAT";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+								//............upadting disk free list.........................
+	temp = 6*512  + basic_block ;
+	[temp] = 1;
+								//............ensuring there are no data blocks in found basic block by over writing it from scratchpad.................
+	counter = 0;
+	temp = 512;
+	while(counter<512) do
+		[temp + counter] = -1;
+		counter = counter + 1;
+	endwhile;
+								//...........storing back updated data structures.............
+	store(1,basic_block);
+	store(5,19);
+	store(6,20);
+
+	[return_val] = 0;
+	ireturn;
+endif;
+
+
+
+
+
+
+
+
+temp=FAT;
+if([syscall] == 4) then							
+	while(temp < (FAT + 512)) do
+		if([filename]==[temp]) then
+			temp2 = (temp-FAT)/8 ;    	//temp2 = fatindex
+			print "b block: " ;
+			basic_block = temp+2;
+			print [basic_block];
+			break;
+		endif;
+		temp =temp +8;
+	endwhile;
+
+//......... .....................................................whether file exists in FAT.................
+	if(temp >= (FAT + 512)) then
+		print "FILE doesn't ";
+		print "exist";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+	counter=0;
+	while(counter<128) do
+		if(temp2==[FILE_TABLE + counter]) then
+			print "FILE opened ";
+			[return_val] = -1;
+			ireturn;	
+		endif;
+		counter = counter + 2;
+	endwhile;
+//................................................................
+
+	load(1,[basic_block]);
+	print [1*512];
+	print [1*512+1];
+	print [1*512+2];
+	print [1*512+3];
+	counter=0;
+	while(counter<256) do
+		temp = [1*512 + counter];
+		if(temp!=-1) then
+			print " data block: ";
+			print temp;
+			temp2=0;
+			while(temp2<512) do
+				[1*512+temp2]="";
+				temp2 = temp2 +1;
+			endwhile;
+			store(1,temp);
+			print [DISK_LIST + temp] ; 
+			[DISK_LIST + temp] = 0;
+					
+		endif;
+		counter = counter +1;
+		load(1,[basic_block]);
+
+	endwhile;
+
+	temp2=0;
+	while(temp2<512) do
+		[1*512+temp2]="";
+		temp2 = temp2 +1;
+	endwhile;
+
+	store(1,[basic_block]);
+
+	print [DISK_LIST + [basic_block]];
+	[DISK_LIST + [basic_block]] = 0;
+
+
+
+	print [basic_block];
+	[basic_block] = -1;
+
+	print [basic_block-1];
+	[basic_block-1] = 0;
+
+	print [basic_block-2];
+	[basic_block-2] = -1;
+
+	store(5,19);
+	store(6,20);
+
+	[return_val] = 0;
+	ireturn;
+		
+endif;

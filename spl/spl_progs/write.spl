@@ -1,0 +1,99 @@
+alias physical_sp S1;
+alias fatindex S2;
+alias counter S6;
+alias word S3;
+alias syscall S4;
+alias temp S5;
+alias return_val S7;
+alias opentableindex S8;
+alias fd S0;
+alias pid S9;
+alias lseek S10;
+alias basic_block S11;
+alias diskblock S12;
+
+pid = (PTBR-1024)/8;
+
+physical_sp = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+
+syscall = physical_sp - 1 ;
+word = physical_sp - 3 ;
+print [word];
+fd = physical_sp - 4;
+print [fd];
+return_val = physical_sp - 2 ;
+
+if([syscall] == 5) then
+	if( ([fd]<0)||([fd]>7) ) then
+		print "Invalid FD ";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+	temp = (READY_LIST + 32*pid);
+
+	if([temp+15+2*[fd]] == -1 ) then
+		print "FILE not " ;
+		print "Opened";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+	opentableindex = [temp+15+2*[fd]];
+	lseek = [temp+15+2*[fd]+1];
+	print "lseek: ";
+	print lseek;
+
+	fatindex = [FILE_TABLE + 2*opentableindex];
+	print "fatindex: ";
+	print fatindex;
+	basic_block = [FAT + 8*fatindex+2];
+
+	temp = lseek/512 ;    // index in basicblock mapped to datablock
+	load(1,basic_block);
+
+	diskblock = [1*512 + temp] ;
+
+	if(diskblock==-1) then
+		temp = 6*512;
+		counter = 24;
+		while(temp + counter < (6*512 + 448)) do
+			if([temp + counter]==0) then
+				diskblock = counter;
+				print "dblock:";
+				print counter;
+				[FAT + 8*fatindex+1] = [FAT + 8*fatindex+1] + 512;
+				break;
+			endif;
+		counter = counter + 1 ;
+		endwhile;
+	endif;
+										//............if df is full......................
+	if(temp>=6*512+448) then
+		print "No space in df";
+		[return_val] = -1;
+		ireturn;
+	endif;
+
+	load(1,diskblock);
+	[1*512 + (lseek%512)] = [word];
+	store(1,diskblock);
+
+	print "diskblock: ";
+	print diskblock ;
+	[DISK_LIST + diskblock] = 1;
+	load(1,basic_block);
+	[1*512 + lseek/512 ]= diskblock;
+
+	store(1,basic_block);
+	store(6,20);
+
+	
+	store(5,19);
+
+	[(READY_LIST + 32*pid)+15+2*[fd]+1] = [(READY_LIST + 32*pid)+15+2*[fd]+1] +1; 
+
+endif;
+
+	[return_val] = 0;
+	ireturn;

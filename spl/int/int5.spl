@@ -1,0 +1,192 @@
+print("In INT 5");
+
+alias physicalSP S0;
+alias sysCallno S1;
+alias returnAdd S2;
+alias counter S3;
+alias childPID S4;
+
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+sysCallno = physicalSP -1;
+returnAdd = physicalSP -2;
+
+if([sysCallno]==8) then
+
+counter=0;
+while(counter<64) do
+	if([READY_LIST +32*counter+ 1]==0) then
+		childPID=counter;
+		break;
+	endif;
+	counter=counter+1;
+endwhile;
+
+if(counter>=64) then
+ 	print("no enough me");
+	[returnAdd]=-1;
+	ireturn;
+endif;
+
+[READY_LIST +32*childPID]=childPID;
+
+alias i S5;
+counter=0;
+i=0;
+
+while(counter<4) do
+	if (([PTBR+2*counter+1]=="01") || ([PTBR+2*counter+1]=="11"))then
+		i=i+1;
+	endif;
+	counter=counter+1;
+endwhile;
+//......................................print(i);
+
+counter=29;
+
+alias pg1 S6;
+alias pg2 S7;
+alias pg3 S8;
+alias pg4 S9;
+
+pg1=-1;
+pg2=-1;
+pg3=-1;
+pg4=-1;
+
+
+while(counter<64) do
+if(i==0) then
+break;
+endif;
+
+if([1280 +counter]==0) then
+	if(i==1)then
+		pg1=counter;
+	endif;
+	
+	if(i==2)then
+		pg2=counter;
+	endif;
+	
+	if(i==3)then
+		pg3=counter;
+	endif;
+	if(i==4)then
+		pg4=counter;
+	endif;
+i=i-1;
+
+endif;
+counter=counter+1;
+
+endwhile;
+
+
+if(i>0) then
+ 	print("no enough page");
+	[returnAdd]=-1;
+	ireturn;
+endif;
+
+
+
+
+
+//.................................. changing Memory free list
+if(pg4!=-1) then
+[1280+ pg4]=1;
+endif;
+
+if(pg1!=-1) then
+[1280+ pg1]=1;
+endif;
+if(pg2!=-1) then
+[1280+ pg2]=1;
+endif;
+if(pg3!=-1) then
+[1280+ pg3]=1;
+endif;
+
+//...................................
+counter=0;
+
+	if (([PTBR+2*counter+1]=="01") || ([PTBR+2*counter+1]=="11"))then
+		i=0;
+    		while(i<512) do
+                [512*pg4 +i]=[512*[PTBR+2*counter]+i];
+                i=i+1;
+                endwhile;
+	endif;
+counter=1;
+
+	if (([PTBR+2*counter+1]=="01") || ([PTBR+2*counter+1]=="11"))then
+		i=0;
+    		while(i<512) do
+                [512*pg3 +i]=[512*[PTBR+2*counter]+i];
+                i=i+1;
+		endwhile;
+	endif;
+counter=2;
+
+	if (([PTBR+2*counter+1]=="01") || ([PTBR+2*counter+1]=="11"))then
+		i=0;
+    		while(i<512) do
+                [512*pg2 +i]=[512*[PTBR+2*counter]+i];
+                i=i+1;
+		endwhile;
+	endif;
+counter=3;
+
+	if (([PTBR+2*counter+1]=="01") || ([PTBR+2*counter+1]=="11"))then
+		i=0;
+    		while(i<512) do
+                [512*pg1 +i]=[512*[PTBR+2*counter]+i];
+                i=i+1;
+		endwhile;
+	endif;
+i=0;
+while(i<2*PTLR) do
+	[1024+ childPID*8 + i]=[PTBR + i ];
+	i=i+1;
+endwhile;
+
+[1024+ childPID*8 ]=pg4;
+[1024+ childPID*8 +2]=pg3;
+[1024+ childPID*8 +4]=pg2;
+[1024+ childPID*8 +6]=pg1;
+
+alias childPTBR S11;
+childPTBR=1024+ childPID*8;
+
+[READY_LIST +childPID*32 +5]=1024+ childPID*8;  //storing child ptbr in pcb 
+[READY_LIST +childPID*32 +6]=PTLR;
+[READY_LIST +childPID*32 +4]=[physicalSP ];     //ip
+[READY_LIST +childPID*32 +3]=SP-1;
+[READY_LIST +childPID*32 +2]=BP;
+
+[READY_LIST +childPID*32 +7]=R0;
+[READY_LIST +childPID*32 +8]=R1;
+[READY_LIST +childPID*32 +9]=R2;
+[READY_LIST +childPID*32 +10]=R3;
+[READY_LIST +childPID*32 +11]=R4;
+[READY_LIST +childPID*32 +12]=R5;
+[READY_LIST +childPID*32 +13]=R6;
+[READY_LIST +childPID*32 +14]=R7;
+
+
+i=15;
+while(i<31) do
+	[READY_LIST +childPID*32 +i]=[READY_LIST +(PTBR-1024)*4 +i];
+	i=i+1;
+endwhile;
+
+
+[READY_LIST +childPID*32 +1]=1;
+[returnAdd]=childPID;
+
+[([childPTBR + 2 * ((SP-1) / 512)] * 512) + ((SP-1) % 512) -1]=-2;
+
+endif;
+
+ireturn;
+

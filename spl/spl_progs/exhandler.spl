@@ -1,0 +1,153 @@
+alias cause S0;
+alias vpagenum S1;
+alias ip_addr S3;
+alias physical_sp S4;
+//alias pid S5;
+//alias pcb S6;
+alias i S7;
+alias j S8;
+alias page S9;
+alias exp_page S2;
+alias counter S10;
+
+alias k S13;
+alias temp S11;
+alias victimpage S12;
+
+
+//pid = (PTBR-1024)/8;
+
+//pcb = (READY_LIST + 32*pid);
+
+physical_sp = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+
+breakpoint;
+cause = EFR % 10;		// Gets value of cause field 
+vpagenum = (EFR / 10) % 100;    // Gets value of BadVAddr 
+ip_addr = (EFR/1000);		//Gets value of IP at exception point
+
+exp_page = PTBR + 2*vpagenum;
+
+if(cause !=0) then 
+	if(cause==1) then
+		print "illegal instruction";
+		print(ip_addr);
+	endif;
+
+	if(cause==2) then
+		print "illegal memory ";
+	endif;
+
+	if(cause==3) then
+		print "arithmetic exp error";
+	endif;
+
+	if(cause==4) then
+		print "illegal operands";
+	endif;
+
+	SP=SP+1;
+	[physical_sp +1] = 10 ;
+	SP=SP+1;
+	inline "JMP 11776";
+
+endif;
+
+if(cause==0) then
+	if(exp_page==-1) then
+		print "invalid ref addr";
+		SP=SP+1;
+		[physical_sp +1] = 10 ;
+		SP=SP+1;
+		inline "JMP 11776";
+	endif;
+
+	i=0;
+	page=-1;
+	while(i<64) do
+		if([MEM_LIST +i] <=0) then
+			victimpage =i;
+			[MEM_LIST +i] = [MEM_LIST +i] +1; 
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+
+	breakpoint;
+	
+	if(i>=64) then
+
+		//page-replacing algorithm
+
+		i=0;
+		j = vpagenum;
+
+		while(i<32) do
+			while(j<3) do
+
+				temp = 1024+(PTBR +8*i)%256 +2*j ;
+				if(([temp +1]=="01") || ([temp +1]=="11")) then
+					if([MEM_LIST + [temp]]==1) then
+						if([temp +1]=="11") then
+							[temp +1]="01";
+						endif;
+					else
+	//victim page	
+						victimpage =[temp];
+						k=448;				
+						while(k<512) do
+							if([DISK_LIST + k] ==0) then
+								[DISK_LIST + k] = 1;
+								store(victimpage,k);
+								[temp] = k;
+								[temp +1] = "00" ;
+								break;
+							endif;
+							k=k+1;
+						endwhile;
+
+						if(k>=512) then
+							print "no swap space";
+							SP=SP+1;
+							[physical_sp +1] = 10 ;
+							SP=SP+1;
+							inline "JMP 11776";
+						endif;
+					endif;
+
+				endif;
+				j=j+1;
+
+			endwhile;
+			j=0;
+			i=i+1;
+		endwhile;
+	endif;
+	breakpoint;
+	
+
+	load(victimpage,[exp_page])	;
+	if(([exp_page]<=21) || ([exp_page]>=447)) then		
+		[DISK_LIST + [exp_page]] =[DISK_LIST + [exp_page]] -1;
+
+	endif;
+
+	store(6,20);
+	[exp_page] = victimpage;
+	[exp_page+1] = "11";
+
+	[physical_sp +1] = ip_addr;
+
+endif;
+ireturn;
+
+
+
+
+
+
+
+
+	
+
+

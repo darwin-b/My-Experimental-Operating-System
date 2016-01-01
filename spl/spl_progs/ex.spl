@@ -1,0 +1,194 @@
+print("Exhandler Call");
+
+alias Cause S0;
+alias Vpagenum S1;
+alias Ip_addr S2; 
+alias i S3;
+alias pg S4;
+alias PID S5;
+alias victim S9;
+alias count S6;
+alias j S7;
+alias exp_page S8;
+alias physicalSP S10;
+alias counter S11;
+alias basicb S12;
+
+
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+
+Cause = EFR % 10;		// Gets value of cause field (size 1 char)
+Vpagenum = (EFR / 10) % 100;    // Gets value of BadVAddr 
+Ip_addr = (EFR/1000);		//Gets value of IP at the point of exception
+
+PID=(PTBR-1024)/8;
+exp_page=PTBR + Vpagenum*2 ;
+
+if(Cause!=0) then
+	if(Cause==1) then
+		print("illegal ins");
+		print(Ip_addr);		
+	endif;
+	if(Cause==2) then
+		print("illegal mem access");
+	endif;
+	if(Cause==3) then
+		print("arithme expn");
+	endif;
+	if(Cause==4) then
+		print("illegal opnds");
+	endif;
+	 		SP=SP+1;
+
+		physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+		[physicalSP]=10;
+                    SP=SP+1;	
+						
+			inline "JMP 11776";
+endif;
+
+
+
+//print("page fault");
+
+if([exp_page] ==-1) then
+		SP=SP+1;
+
+		physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+		[physicalSP]=10;
+                    SP=SP+1;	
+						
+			inline "JMP 11776";
+endif;
+breakpoint;
+i=0;
+while(i<64) do
+		if([1280+i]==0) then
+		    pg=i;
+		    [1280+i]=1;
+                    break;
+		endif;
+         i=i+1;
+        endwhile;
+
+if(i>=64) then
+// 	print("# no enough page");
+
+	breakpoint;
+
+	count=(PID+1)%32;
+	
+	victim=-1;
+
+	while(victim==-1) do
+		j=1;
+		
+		while(j<6) do
+			if([1024 + 8*count+j]=="11") then
+				[1024 + 8*count+j]="01";
+			
+			else
+				if([1024 + 8*count+j]== "01") then
+					if([1280+[1024 + 8*count+j-1]]<= 1) then
+						victim=1024 + 8*count + j-1;
+						[1280+[victim]]=1;
+						break;
+					endif;
+				endif;
+		
+			endif;
+			j=j+2;
+		endwhile;
+
+		count=(count+1)%32;
+	
+	
+	endwhile;
+breakpoint;
+
+	if(victim!=-1) then
+		pg=[victim];
+		i=488;
+		while(i<512) do
+			if([6*512+ i]==0) then
+				[6*512+i]=1;
+				store([victim],i);
+				[victim]=i;
+				[victim +1]="00";
+				break;
+		        endif;
+			i=i+1;
+		endwhile;
+
+	        
+		if(i==512) then
+  //                      print("no disk free");
+			SP=SP+1;
+
+		physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+		[physicalSP]=10;
+                    SP=SP+1;	
+						
+			inline "JMP 11776";
+	
+		endif;
+		store(6,20);
+
+	endif;
+endif;
+
+
+
+if([exp_page]>=21 && [exp_page]<=447) then
+	load(pg,[exp_page]);
+	counter=0;
+	while(counter<512) do
+		if([FAT + counter]!=-1) then
+			basicb=FAT + counter +2;
+			
+			
+                    i=0;
+                    load(1,[basicb]);
+			while(i<3) do
+                         if([512+i]==[exp_page]) then
+			[basicb+1+i]=pg;
+			endif;
+			i=i+1;
+			endwhile;
+		endif;
+           
+	counter=counter+8;
+	endwhile;
+
+
+
+else
+        
+	if([exp_page]>=448 && [exp_page]<=511) then
+		load(pg,[exp_page]);
+		[6*512+ [exp_page]]=[6*512+ [exp_page]]-1;
+	endif;
+endif;
+
+[exp_page]=pg;
+[exp_page +1]="11";
+
+SP=SP+1;
+
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+[physicalSP]=Ip_addr;
+store(6,20);
+
+breakpoint;
+ireturn;
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,121 @@
+print("In int 2 ");
+
+alias physicalSP S0;
+alias sysCallno S1;
+alias returnAdd S2;
+alias argument S3;
+alias counter S4;
+
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+sysCallno = physicalSP -1;
+returnAdd = physicalSP -2;
+argument = physicalSP -3;
+
+alias PCB S7;
+PCB = READY_LIST + (PTBR-1024)*4;
+alias FATid S5;
+alias SWFTid S6;
+
+if([sysCallno]==2) then //open ;)
+	counter=0;
+	while(counter<512) do
+		if([FAT+counter]==[argument]) then
+			break;
+		endif;
+		counter=counter+8;
+	endwhile;
+
+	if(counter>511) then //no such file  :(
+		[returnAdd]=-1;
+		print ("no such file!");
+		ireturn;
+	endif;
+
+	FATid=counter/8;
+
+	SWFTid=-1;
+	counter=0;
+
+	while(counter<128) do
+
+		if([FILE_TABLE + counter]==FATid) then
+   			SWFTid=counter/2;
+			break;
+		endif;
+		counter=counter + 2;
+	endwhile;
+
+
+	counter=0;
+	if(SWFTid==-1) then
+		while(counter<128) do
+			if([FILE_TABLE + counter]==-1) then
+	    			SWFTid=counter/2;
+	 			break;	
+			endif;
+			counter=counter+2;
+		endwhile;
+	endif;
+
+	if(SWFTid==-1) then
+		[returnAdd]=-1;
+		ireturn;
+	endif;
+ 
+
+alias FD S8;
+counter =15;
+FD=-1;
+
+
+
+while(counter<31) do
+	if([PCB +counter]==-1) then
+ 		FD=(counter-15)/2;
+   		break;
+	endif;
+	counter=counter+2;
+endwhile;
+
+	if(counter>=31) then
+		print("max limit reached");
+		[returnAdd]=-1;
+		ireturn;
+	endif;
+
+	[PCB +15 + FD*2]=SWFTid;
+	[PCB +15 + FD*2 + 1]=0;
+	[FILE_TABLE+ 2*SWFTid]=FATid;
+	[FILE_TABLE+ 2*SWFTid + 1]=[FILE_TABLE+ 2*SWFTid + 1]+1;
+	[returnAdd]=FD; //success :)
+
+else 
+
+	if([argument]<0||[argument]>7) then
+		[returnAdd]=-1;
+		print("invalid fd");
+		ireturn;
+	endif;
+
+	if([PCB+15+2*[argument]]==-1) then
+		print("file not open");
+		[returnAdd]=-1;
+
+else
+
+alias fdloc S9;
+fdloc=PCB+15+2*[argument];
+[FILE_TABLE + 2*[fdloc] + 1]=[FILE_TABLE + 2*[fdloc]+1]-1;
+
+if([FILE_TABLE + 2*[fdloc]+1]==0)then
+	[FILE_TABLE + 2*[fdloc]]=-1;
+	endif;
+	[fdloc]=-1;
+	[fdloc + 1]=-1;
+
+	[returnAdd]=0;
+endif;
+
+endif;
+ireturn;
+

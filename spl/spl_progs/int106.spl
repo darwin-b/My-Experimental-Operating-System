@@ -1,0 +1,159 @@
+print("# In INT 6");
+breakpoint;
+
+alias physicalSP S0;
+alias sysCallno S1;
+alias returnAdd S2;
+alias counter S3;
+alias PID S4;
+alias fname S5;
+alias basicb S6;
+alias size S7;
+alias i S8;
+alias valid S9;
+
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+sysCallno = physicalSP -1;
+returnAdd = physicalSP -2;
+
+
+if([sysCallno]==9) then
+	fname = physicalSP -3;
+	print("file");
+	print ([fname]);
+	counter=0;
+	breakpoint;
+	while(counter<512) do
+		if([FAT + counter]==[fname]) then
+			basicb=FAT + counter +2;
+			size=[FAT + counter +1]/512;
+			break;
+		endif;
+	counter=counter+8;
+	endwhile;
+
+	if(counter>511) then
+		print("# file not found");
+		[returnAdd]=-1;
+		ireturn;
+	endif;
+
+
+	if(size>3) then
+	//	print("# cant have >3 pages");
+		[returnAdd]=-1;
+		ireturn;
+	endif;
+
+
+
+counter=0;
+alias phypgno S10;
+
+while(counter<3) do
+	valid=PTBR+2*counter+1;
+	phypgno=[PTBR+2*counter];
+	if([valid]=="01"||[valid]=="11") then
+  		[1280+phypgno]=[1280+phypgno]-1;
+
+	else
+    		if(phypgno>=448)then
+    	  		[6*512+phypgno]=[6*512+phypgno]-1;
+    		endif;
+	endif;
+
+	counter=counter+1;
+endwhile;
+
+store(6,20);
+
+counter=0;
+i=0;
+load(1,[basicb]);
+	
+	while(i<3)do                //counter<size
+	  	if([512+i]!=-1) then                      //remove this then 2 not req
+			
+			if([basicb+1+i]=="") then
+				[PTBR +2*counter]=[512+i];
+				[PTBR+2*counter+1]="00";
+			else
+				[PTBR +2*counter]=[basicb+1+i];
+				[PTBR+2*counter+1]="01";   
+				[1280+[basicb+1+i]]=  [1280+[basicb+1+i]]+1;
+			endif;      
+			counter=counter+1; 
+		endif;
+	i=i+1;
+	endwhile;
+
+while(counter<3) do                                        // --2  
+	[PTBR +2*counter]=-1;
+	[PTBR+2*counter+1]="00";
+	counter=counter+1;  
+endwhile;
+
+	[PTBR+2*counter+1]="01";
+
+
+alias PCB S12;
+alias fdloc S13;
+
+
+
+if(PTBR>=61*512) then
+	PID=(PTBR-61*512)/8 +32;
+	PCB=62*512 + 32*(PID-32);
+else
+	PID=(PTBR-1024)/8 ;
+	PCB=READY_LIST + 32*PID;
+	
+endif;
+
+
+i=0;
+while(i<8) do
+
+	if([PCB+15+2*i]!=-1) then
+	
+		fdloc=PCB+15+2*i;
+		[FILE_TABLE + 2*[fdloc] + 1]=[FILE_TABLE + 2*[fdloc]+1]-1;
+
+			if([FILE_TABLE + 2*[fdloc]+1]==0)then
+				[FILE_TABLE + 2*[fdloc]]=-1;
+			endif;
+		
+		[fdloc]=-1;
+		[fdloc + 1]=-1;
+
+	endif;
+
+i=i+1;
+endwhile;
+SP=3*512;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+
+[physicalSP]=0;
+store(6,20);
+
+ireturn;
+endif;
+
+if([sysCallno]==11) then
+
+
+
+	if(PTBR>=512*61) then
+		[returnAdd]=(PTBR-61*512)/8 +32;
+	else
+		[returnAdd]=(PTBR-1024)/8;
+	endif;
+else
+	if(PTBR>=512*61) then
+		[returnAdd]=[512*62+ 4*(PTBR-62*512) +31];
+	else
+		[returnAdd]=[READY_LIST+ 4*(PTBR-1024) +31];
+	endif;
+endif;
+ireturn;
+

@@ -1,0 +1,81 @@
+print("In int 4 ");
+
+alias physicalSP S0;
+alias sysCallno S1;
+alias returnAdd S2;
+alias fd S3;
+alias word S4;
+alias counter S5;
+alias lseek S7;
+alias fatindex S9;
+alias bb S10;
+
+
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+sysCallno = physicalSP -1;
+returnAdd = physicalSP -2;
+word= physicalSP -3;
+fd=physicalSP -4;
+
+
+if([fd]>7||[fd]<0) then
+print("Invalid FD");
+[returnAdd]=-1;
+ireturn; 
+endif;
+
+S6=(PTBR-1024)/8;
+alias swft_index S8;
+
+swft_index=[READY_LIST+ S6*32 +15+2*[fd]];
+lseek=[READY_LIST+ S6*32 +15+2*[fd]+1];
+
+if(swft_index==-1) then
+ print("Not opened");
+ [returnAdd]=-1;
+ ireturn;
+endif;
+
+fatindex=[FILE_TABLE+2*swft_index];
+bb=[FAT+8*fatindex+2];
+
+load(1,bb);
+if([512+lseek/512]==-1) then
+
+	counter=24;
+
+	while(([512*6+counter]!=0 )&&(counter<=447)) do
+		counter=counter+1;
+	endwhile;
+
+	if(counter>447) then 
+		print("No free db");
+		 [returnAdd]=-1;
+		 ireturn;
+	endif;
+
+	[512*6+counter]=1;
+	store(6,20);
+
+	[512+lseek/512]=counter;
+	[FAT+8*fatindex+1]=[FAT+8*fatindex+1]+512;
+	store(1,bb);
+        store(5,19);
+        
+
+else
+   counter=[512 + lseek/512];
+endif;
+
+
+load(1,counter);
+[512+lseek%512]=[word];
+store(1,counter);
+
+[READY_LIST+ S6*32 +15+2*[fd]+1]=[READY_LIST+ S6*32 +15+2*[fd]+1]+1;
+
+print("word written");
+[returnAdd]=0;
+ireturn;
+
+

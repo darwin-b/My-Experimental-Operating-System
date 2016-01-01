@@ -1,0 +1,148 @@
+print "In INT 1";
+
+alias physicalSP S0;
+alias sysCallNo S1;
+alias dfNo S5;
+S5 = 3072;
+alias counter S6;
+S4=0;
+
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+sysCallNo = ([PTBR + 2 * ((SP-1) / 512)] * 512) + ((SP-1) % 512);
+S2 = ([PTBR + 2 * ((SP-2) / 512)] * 512) + ((SP-2) % 512);
+S3 = ([PTBR + 2 * ((SP-3) / 512)] * 512) + ((SP-3) % 512);
+
+
+if ( [sysCallNo] == 1) then
+  	while(S4 < 512) do
+     	   if([FAT + S4]==[S3]) then
+ 		 print("Found");        
+		 [S2]=0;
+        	 ireturn;
+   	   endif;
+            S4=S4+8;
+   	endwhile;
+
+S4=24;
+
+       while(S4 < 448) do 
+ 
+	  if([S5 + S4]==0) then
+	   	  counter=0;
+  
+		  while (([FAT + counter]!=-1) && (counter < 512)) do
+			   counter= counter + 8;
+		  endwhile;
+  
+		  if(counter > 511) then
+   			[S2]=-1;
+   			print("fat is full ,file not created");
+   			ireturn;
+  		  endif;
+
+  		 load(1,S4);
+    		 S7=512;
+   
+		 while(S7<1024) do
+  			[S7]=-1;
+  			S7= S7 + 1;
+  		 endwhile;
+  
+		store(1,S4);
+		[S4 + S5]=1;
+		store(6,20);
+
+ 
+   		[FAT + counter]=[S3];
+   		[FAT + counter +1] = 0;
+  		[FAT + counter + 2]= S4; 
+ 		store(5,19);
+
+    		print("created");
+   
+  		 [S2]=0;
+ 		  ireturn;
+
+	endif;
+		S4=S4+1;
+endwhile;
+
+//............... delete routine..................
+
+else
+// no s6,
+alias filename S3;
+alias retaddress S2;
+alias fatid S4;
+alias bblock S5;
+alias i S7;
+
+counter = 0;
+
+while(counter<512) do
+	if([FAT + counter] == [filename]) then
+		fatid = counter/8;
+		break;
+
+	endif;
+counter = counter + 8;
+endwhile;
+
+if(counter>511) then
+	print("File nt exi");
+	[retaddress] = -1;
+	ireturn;
+endif;
+
+
+print("file exist");
+
+counter=0;
+while(counter<128) do
+	if([FILE_TABLE + counter]== fatid) then
+		print("file in use");
+		[retaddress] = -1;
+		ireturn;
+	endif;
+counter = counter + 2;
+endwhile;
+
+bblock = [FAT + fatid*8 + 2];
+counter=0;
+while(counter<256) do
+	load(1,bblock);
+	if([512 + counter]!=-1) then
+              alias datab S8;
+		datab=[512+counter];
+		load(1,datab);		
+		i=512;
+		while(i<1024) do
+			[512 + i] = ""; 
+			i = i +1;
+		endwhile;
+		store(1,datab);
+		[6*512 +datab]=0;
+	endif;
+counter=counter+1;
+endwhile;
+
+load(1,bblock);
+counter=0;
+while(counter<512) do
+[512+counter]="";
+counter=counter+1;
+endwhile;
+store(1,bblock);
+[6*512+bblock]=0;
+
+[FAT+fatid*8]=-1;
+[FAT+fatid*8+1]=0;
+[FAT+fatid*8+2]=-1;
+
+store(5,19);
+store(6,20);
+ print("deleted");
+[retaddress] = 0;
+endif; 
+ireturn;
+ 
